@@ -1,0 +1,40 @@
+# Stable River Morphodynamics Configuration
+# Carefully tuned parameters to prevent numerical instabilities
+
+# Domain parameters
+width: 100
+height: 50
+dx: 10.0
+dy: 10.0
+
+# Time parameters - CRITICAL for stability
+dt: 0.01                      # Much smaller timestep for numerical stability
+total_time: 100.0             # Shorter run to test
+output_interval: 100          # Output every 100 steps
+
+# Physical parameters
+discharge: 5.0                # Reasonable discharge (m³/s)
+slope: 0.002                  # Gentle slope
+roughness: 0.035              # Manning's n
+gravity: 9.81
+min_flow_depth: 0.01          # Minimum water depth
+
+# Sediment parameters - very conservative
+erosion_coefficient: 0.0001      # Very small to prevent instability
+deposition_coefficient: 0.0001    # Matching deposition
+transport_capacity_coeff: 0.01   # Low transport capacity
+
+# Terrain generation parameters
+valley_depth: 2.0             # Moderate valley depth
+terrain_roughness: 0.1        # Some roughness
+noise_scale: 0.1              # Small noise
+
+# Boundary conditions
+upstream_discharge: 5.0       # Match discharge
+upstream_source_y: 25         # Center of domain
+upstream_source_width: 5      # Wider source for stability
+sediment_supply_concentration: 0.001  # Low sediment input
+
+# Output parameters
+output_dir: output
+experiment_name: stable_river
