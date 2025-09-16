@@ -63,7 +63,7 @@ class RiverSimulation:
         
         # Initialize shallow water and sediment
         self.h.fill(self.cfg.min_depth)
-        self.c.fill(0.001)
+        self.c.fill(0.0)
         
         self.z0 = self.z.copy()
         logger.info(f"Initialized {w}x{h} domain for experiment '{self.cfg.experiment_name}'")

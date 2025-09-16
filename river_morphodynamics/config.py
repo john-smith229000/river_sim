@@ -28,10 +28,12 @@ class SimulationConfig:
     transport_capacity_coeff: float = 0.001
     sediment_supply_concentration: float = 0.005
 
+    bed_porosity: float = 0.3
+
     # Coefficient for lateral erosion / bank slumping.
     # A small value (e.g., 0.1) helps stabilize the channel by preventing
     # the formation of overly steep canyon walls.
-    bed_diffusion_coeff: float = 0.1
+    bed_diffusion_coeff: float = 0.01
     
     # Initial terrain
     initial_slope: float = 0.003

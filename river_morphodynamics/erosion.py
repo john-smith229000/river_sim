@@ -6,61 +6,59 @@ GRAVITY = 9.81    # m/s^2
 
 def compute_erosion_deposition(sim, S):
     """
-    Computes bed elevation changes using a stable, mass-balanced approach.
+    Computes bed elevation changes using a stable, mass-balanced approach
+    where deposition is correctly suppressed by high flow energy.
     """
     cfg, dt = sim.cfg, sim.dt
     z, h, u, v, c = sim.z, sim.h, sim.u, sim.v, sim.c
     
-    # Clean incoming sediment concentration to ensure it's physically possible
+    # Clean incoming sediment concentration to ensure it is physically possible.
     c = np.nan_to_num(np.clip(c, 0.0, 0.5))
     
-    # --- NEW, STABLE EROSION/DEPOSITION ENGINE ---
+    # --- FINAL, PHYSICS-BASED EROSION/DEPOSITION ENGINE ---
     
-    # 1. Calculate the flow's power to erode (Erosion Potential)
-    # This is the same as before: based on shear stress.
+    # 1. Calculate the bed shear stress, which represents the energy of the flow.
     tau = RHO_WATER * GRAVITY * h * S
-    excess_shear = np.maximum(0, tau - cfg.critical_shear)
-    E_potential = cfg.erosion_rate * excess_shear
-
-    # 2. Calculate the potential for deposition based on settling
-    # Based on your insight, deposition is now a simple settling process
-    # proportional to the amount of sediment in the water. `deposition_rate`
-    # now acts as a "settling velocity". This is physically realistic and stable.
-    D_potential = cfg.deposition_rate * c
-
-    # 3. The net change in the bed is the difference between the two.
-    # If erosion potential > deposition potential, the bed erodes.
-    # If deposition potential > erosion potential, the bed aggrades.
-    # This system naturally seeks an equilibrium and cannot run away.
-    dz_dt = D_potential - E_potential
     
-    # For overall stability, limit the maximum rate of change
-    max_allowable_rate = 0.01 * cfg.dx / (dt + 1e-9)
+    # 2. EROSION (Entrainment): Occurs only where flow energy exceeds a critical threshold.
+    excess_shear = np.maximum(0, tau - cfg.critical_shear)
+    E = cfg.erosion_rate * excess_shear
+
+    # 3. DEPOSITION: Occurs only where flow energy is *below* the critical threshold.
+    # This is the crucial fix. We define a "deposition factor" that is 1
+    # for calm water (tau=0) and 0 for energetic water (tau >= critical_shear).
+    # This prevents deposition in fast-flowing parts of the channel.
+    deposition_factor = np.maximum(0, 1.0 - tau / (cfg.critical_shear + 1e-9))
+    D = cfg.deposition_rate * c * deposition_factor
+    
+    # 4. NET BED CHANGE: The difference between deposition and erosion.
+    # We revert to a simple formulation without porosity for maximum stability first.
+    dz_dt = D - E
+    
+    # Limit the maximum rate of change for numerical stability.
+    max_allowable_rate = 0.05 * cfg.dx / (dt + 1e-9) # Increased limit slightly
     dz_dt = np.clip(dz_dt, -max_allowable_rate, max_allowable_rate)
     
-    # Calculate the actual change in bed elevation
+    # Apply the change to the bed.
     active_cells = h > cfg.min_depth
     dz = dz_dt * dt
     z_new = z.copy()
     z_new[active_cells] += dz[active_cells]
 
-    # 4. Update sediment concentration in the water based on bed change
-    # The change in sediment concentration is the opposite of the bed change.
+    # 5. CONSERVATION OF MASS: Update sediment concentration based on net bed change.
     c_new = c.copy()
     c_new[active_cells] -= dz_dt[active_cells] * dt / (h[active_cells] + 1e-6)
-
-    # Enforce absolute physical limits on concentration
     c_new = np.nan_to_num(np.clip(c_new, 0.0, 0.5))
 
-    # Advect the updated sediment concentration downstream
+    # Advect the updated sediment concentration downstream.
     c_new = _advect_sediment(c_new, u, v, cfg, dt)
     
-    # Apply the inlet boundary condition for sediment
+    # Apply the inlet boundary condition for sediment.
     inlet_start = cfg.height // 2 - cfg.inlet_width // 2
     inlet_end = inlet_start + cfg.inlet_width
     c_new[0, inlet_start:inlet_end] = cfg.sediment_supply_concentration
     
-    # Apply bank slumping where there is water
+    # Apply localized bank slumping (diffusion).
     if cfg.bed_diffusion_coeff > 0:
         z_padded = np.pad(z_new, 1, mode='edge')
         z_neighbors_avg = (z_padded[:-2, 1:-1] + z_padded[2:, 1:-1] +
